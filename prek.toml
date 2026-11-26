@@ -1,0 +1,47 @@
+#:schema https://www.schemastore.org/prek.json
+
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "check-toml" },
+  { id = "check-yaml" },
+  { id = "end-of-file-fixer" },
+  { id = "mixed-line-ending" },
+  # Keep Markdown hard line breaks (two trailing spaces).
+  { id = "trailing-whitespace", args = ["--markdown-linebreak-ext=md"] },
+]
+
+[[repos]]
+repo = "https://github.com/crate-ci/typos"
+rev = "v1.52.2"
+hooks = [
+  { id = "typos" },
+]
+
+[[repos]]
+repo = "https://github.com/zizmorcore/zizmor-pre-commit"
+rev = "v1.33.1"
+hooks = [
+  { id = "zizmor", args = ["--no-progress", "--persona=auditor"] },
+]
+
+[[repos]]
+repo = "https://github.com/rhysd/actionlint"
+rev = "v1.7.12"
+hooks = [
+  { id = "actionlint" },
+]
+
+[[repos]]
+repo = "https://github.com/AleksaC/hadolint-py"
+rev = "v2.15.1"
+hooks = [
+  { id = "hadolint" },
+]
+
+[[repos]]
+repo = "https://github.com/python-jsonschema/check-jsonschema"
+rev = "0.39.0"
+hooks = [
+  { id = "check-dependabot" },
+]

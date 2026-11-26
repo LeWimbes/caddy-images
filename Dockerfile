@@ -10,5 +10,6 @@ RUN set -eu; \
     for module in ${CADDY_MODULES}; do set -- "$@" --with "${module}"; done; \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} xcaddy build "$@"
 
+# hadolint ignore=DL3007
 FROM caddy:latest
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
