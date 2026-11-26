@@ -60,7 +60,8 @@ and runs [`build-image.yml`](./.github/workflows/build-image.yml) for each image
 
 - **Triggers**
   - Any push to the `main` branch that changes the Dockerfile, the justfile or the workflows
-  - A daily scheduled run that checks whether `caddy:latest` has changed upstream
+  - A daily scheduled run that checks whether the Caddy version, the `caddy` base image, the Go version or a module
+    has changed since the published image was built (recorded in its `io.github.lewimbes.caddy-images.build-inputs` label)
   - A manual run
   - Pull requests with such changes, which only build and test the image
 
@@ -68,7 +69,7 @@ and runs [`build-image.yml`](./.github/workflows/build-image.yml) for each image
   - builds the image natively on linux/amd64 and linux/arm64 and
     checks that it runs the expected Caddy version and contains its modules
     (`just build` and `just test`, which also work locally),
-  - builds Caddy with the image's modules for linux/amd64 and linux/arm64,
+  - builds Caddy with the image's modules, pinned to their latest versions, for linux/amd64 and linux/arm64,
   - tags the result (latest, full semver, major‑minor, major),
   - pushes to **Docker Hub** and **GHCR**.
 

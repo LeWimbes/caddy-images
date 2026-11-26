@@ -1,7 +1,7 @@
 name: Build image
 
 # Called once per variant from auto-build-on-change.yml.
-# Checks one image variant for base image updates and, if needed,
+# Checks one image variant for updates of Caddy, its base image, Go or a module and, if needed,
 # builds and tests it on every platform and then publishes it.
 on:
   workflow_call:
@@ -30,28 +30,63 @@ permissions: {}
 env:
   DOCKERHUB_REPO: lewimbes/${{ inputs.image }}
   GHCR_REPO: ghcr.io/lewimbes/${{ inputs.image }}
+  # Records everything the published image was built from (see `just build-inputs`).
+  BUILD_INPUTS_LABEL: io.github.lewimbes.caddy-images.build-inputs
 
 jobs:
   check-updates:
-    name: Check for base image updates
+    name: Check for updates
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: read # list GHCR container versions to detect already-published tags
+      contents: read # check out the code
     outputs:
       needs-updating: ${{ steps.check.outputs.needs-updating }}
+      modules: ${{ steps.check.outputs.modules }}
+      build-inputs: ${{ steps.check.outputs.build-inputs }}
     steps:
-      - name: Check if Caddy base image updated
-        id: check
-        uses: lucacome/docker-image-update-checker@a9613235d22dc951741aef2b6301da8db05ea5f6 # v3.1.3
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          base-image: caddy:latest
-          image: ${{ env.DOCKERHUB_REPO }}:latest
+          persist-credentials: false
+
+      - name: Install just
+        uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
+        with:
+          tool: just
+
+      # The modules are pinned here, so the tests, the published image and its label all use the same versions.
+      - name: Compare build inputs with the published image
+        id: check
+        env:
+          IMAGE: ${{ inputs.image }}
+          MODULES: ${{ inputs.modules }}
+          CADDY_VERSION: ${{ inputs.caddy-version }}
+        run: |
+          set -euo pipefail
+          modules=$(just resolve-modules "$MODULES")
+          current=$(just build-inputs "$modules" "$CADDY_VERSION")
+          # Empty if the image or its label doesn't exist yet, which counts as an update.
+          published=$(docker buildx imagetools inspect "$GHCR_REPO:latest" --format '{{json .Image}}' 2>/dev/null |
+            jq -r --arg label "$BUILD_INPUTS_LABEL" '."linux/amd64".config.Labels[$label] // ""' || true)
+          changed=$(comm -13 <(tr ' ' '\n' <<< "$published" | sort) <(tr ' ' '\n' <<< "$current" | sort) | paste -sd ' ' -)
+          if [ "$current" = "$published" ]; then needs_updating=false; else needs_updating=true; fi
+          {
+            echo "modules=$modules"
+            echo "build-inputs=$current"
+            echo "needs-updating=$needs_updating"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### $IMAGE"
+            echo "- Published: \`${published:-none}\`"
+            echo "- Current: \`$current\`"
+            echo "- Changed: \`${changed:-nothing}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Changed build inputs: ${changed:-nothing}"
 
   test:
     name: Test (${{ matrix.arch }})
     needs: check-updates
-    # Run if it's a manual trigger, a code push or pull request, or if the update checker found a new base image
+    # Run if it's a manual trigger, a code push or pull request, or if any build input changed
     if: github.event_name != 'schedule' || needs.check-updates.outputs.needs-updating == 'true'
     strategy:
       matrix:
@@ -77,19 +112,19 @@ jobs:
 
       - name: Build image
         env:
-          MODULES: ${{ inputs.modules }}
+          MODULES: ${{ needs.check-updates.outputs.modules }}
           CADDY_VERSION: ${{ inputs.caddy-version }}
         run: just build "$MODULES" "$CADDY_VERSION"
 
       - name: Test image
         env:
-          MODULES: ${{ inputs.modules }}
+          MODULES: ${{ needs.check-updates.outputs.modules }}
           CADDY_VERSION: ${{ inputs.caddy-version }}
         run: just test "$MODULES" "$CADDY_VERSION"
 
   build-and-push:
     name: Build and Push Docker image
-    needs: test
+    needs: [check-updates, test]
     if: inputs.publish
     runs-on: ubuntu-latest
     environment: dockerhub
@@ -140,6 +175,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=${{ inputs.image }}
             org.opencontainers.image.description=Caddy with ${{ inputs.modules }}
+            ${{ env.BUILD_INPUTS_LABEL }}=${{ needs.check-updates.outputs.build-inputs }}
 
       - name: Build and push Docker images
         id: push
@@ -151,7 +187,7 @@ jobs:
             linux/amd64
             linux/arm64
           build-args: |
-            CADDY_MODULES=${{ inputs.modules }}
+            CADDY_MODULES=${{ needs.check-updates.outputs.modules }}
             CADDY_VERSION=${{ inputs.caddy-version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

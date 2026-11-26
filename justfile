@@ -41,3 +41,42 @@ test $modules $caddy_version="2" $tag="caddy-images:dev":
         echo "$packages" >&2
     fi
     exit "$missing"
+
+# Pin modules to the versions xcaddy would pick, e.g. `just resolve-modules "github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4"`.
+resolve-modules $modules:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    resolved=()
+    for module in $modules; do
+        path="${module%%@*}"
+        # The module proxy expects upper-case letters as "!" plus the lower-case letter.
+        encoded=$(sed 's/[A-Z]/!\L&/g' <<< "$path")
+        if [[ "$module" == *@* ]]; then
+            url="https://proxy.golang.org/$encoded/@v/${module#*@}.info"
+        else
+            url="https://proxy.golang.org/$encoded/@latest"
+        fi
+        version=$(curl -fsSL "$url" | jq -r '.Version')
+        resolved+=("$path@$version")
+    done
+    echo "${resolved[*]}"
+
+# Print everything a build depends on, for pinned modules and an exact Caddy version.
+build-inputs $modules $caddy_version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Only the platforms we publish, so updates of other platforms (e.g. Windows) don't count.
+    index=$(docker buildx imagetools inspect "caddy:$caddy_version" --raw)
+    inputs=("caddy=$caddy_version")
+    for platform in linux/amd64 linux/arm64; do
+        digest=$(jq -r --arg os "${platform%/*}" --arg arch "${platform#*/}" \
+            '.manifests[] | select(.platform.os == $os and .platform.architecture == $arch) | .digest' <<< "$index")
+        [ -n "$digest" ] || { echo "error: caddy:$caddy_version has no $platform image" >&2; exit 1; }
+        inputs+=("caddy-$platform=$digest")
+    done
+    # The binary is cross-compiled on amd64, so only the builder's Go version matters, not its other contents.
+    go=$(docker buildx imagetools inspect "caddy:$caddy_version-builder" --format '{{{{json .Image}}' |
+        jq -r '."linux/amd64".config.Env[] | select(startswith("GOLANG_VERSION=")) | ltrimstr("GOLANG_VERSION=")')
+    [ -n "$go" ] || { echo "error: caddy:$caddy_version-builder has no GOLANG_VERSION" >&2; exit 1; }
+    inputs+=("go=$go" $modules)
+    echo "${inputs[*]}"
