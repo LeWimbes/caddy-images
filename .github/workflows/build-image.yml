@@ -160,9 +160,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels, annotations) for Docker
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          # GHCR reads the description of a multi-arch image from the index annotations.
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: |
             ${{ env.DOCKERHUB_REPO }}
@@ -178,10 +181,16 @@ jobs:
             # Never moves, so a build can be pinned and rolled back to, e.g. 2.11.9-20261126.0420.
             type=raw,value=${{ inputs.caddy-version }}-${{ inputs.build-time }}
           # Defaults would use the repository name and description, which cover all variants.
+          # The vendor would otherwise be inherited from the official Caddy image.
           labels: |
             org.opencontainers.image.title=${{ inputs.image }}
             org.opencontainers.image.description=Caddy with ${{ inputs.modules }}
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
             ${{ env.BUILD_INPUTS_LABEL }}=${{ needs.check-updates.outputs.build-inputs }}
+          annotations: |
+            org.opencontainers.image.title=${{ inputs.image }}
+            org.opencontainers.image.description=Caddy with ${{ inputs.modules }}
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
 
       - name: Build and push Docker images
         id: push
