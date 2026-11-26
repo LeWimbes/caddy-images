@@ -62,15 +62,22 @@ docker buildx imagetools inspect lewimbes/caddy-cloudflare:latest --format '{{js
 
 ## 🛠️ Build it yourself
 
-The modules to build into Caddy are passed as a space-separated build argument.
-`CADDY_VERSION` is optional and defaults to the latest Caddy 2:
+The modules to build into Caddy are passed as a space-separated list.
+The Caddy version is optional and defaults to the latest Caddy 2.
+With [just](https://github.com/casey/just), this builds an image for your platform and tests it, like the workflow does:
 
 ```bash
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
+just build "github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4" 2.11.9
+just test "github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4" 2.11.9
+```
+
+Without just, the build is a plain Docker build:
+
+```bash
+docker build \
   --build-arg CADDY_MODULES="github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4" \
   --build-arg CADDY_VERSION=2.11.9 \
-  -t caddy-cloudflare-l4:latest .
+  --tag caddy-images:dev .
 ```
 
 ---
