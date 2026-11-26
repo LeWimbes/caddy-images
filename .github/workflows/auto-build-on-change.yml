@@ -29,8 +29,30 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  caddy-version:
+    name: Resolve Caddy version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      # Resolved once, so all images are built from the same version. caddy:latest is only
+      # updated once the official images are published, so caddy:<version>(-builder) exist.
+      - name: Read the Caddy version of caddy:latest
+        id: resolve
+        run: |
+          set -euo pipefail
+          ver=$(docker buildx imagetools inspect caddy:latest --format '{{json .Image}}' |
+            jq -r '."linux/amd64".config.Env[] | select(startswith("CADDY_VERSION=")) | ltrimstr("CADDY_VERSION=v")')
+          if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected Caddy version: '$ver'"
+            exit 1
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "Resolved Caddy version → $ver"
+
   build:
     name: ${{ matrix.image }}
+    needs: caddy-version
     strategy:
       # A variant that fails to build must not stop the others from being published.
       fail-fast: false
@@ -53,6 +75,7 @@ jobs:
     with:
       image: ${{ matrix.image }}
       modules: ${{ matrix.modules }}
+      caddy-version: ${{ needs.caddy-version.outputs.version }}
       publish: ${{ github.event_name != 'pull_request' }}
     # Reusable workflows get no secrets unless passed.
     # Environment secrets can't be passed explicitly,

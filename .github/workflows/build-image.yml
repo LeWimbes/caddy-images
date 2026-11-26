@@ -14,6 +14,10 @@ on:
         description: Space-separated Go module paths to build into Caddy
         required: true
         type: string
+      caddy-version:
+        description: Exact Caddy version to build, e.g. 2.11.9
+        required: true
+        type: string
       publish:
         description: Push the image to the registries after the tests passed
         required: false
@@ -74,12 +78,14 @@ jobs:
       - name: Build image
         env:
           MODULES: ${{ inputs.modules }}
-        run: just build "$MODULES"
+          CADDY_VERSION: ${{ inputs.caddy-version }}
+        run: just build "$MODULES" "$CADDY_VERSION"
 
       - name: Test image
         env:
           MODULES: ${{ inputs.modules }}
-        run: just test "$MODULES"
+          CADDY_VERSION: ${{ inputs.caddy-version }}
+        run: just test "$MODULES" "$CADDY_VERSION"
 
   build-and-push:
     name: Build and Push Docker image
@@ -102,21 +108,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Fetch Caddy version
-        id: caddy
-        shell: bash
-        run: |
-          set -euo pipefail
-          url='https://raw.githubusercontent.com/docker-library/official-images/master/library/caddy'
-          ver=$(curl -fsSL "$url" | grep -m1 '^Tags:' | \
-              sed -E 's/Tags:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          {
-            echo "full=$ver"
-            echo "major_minor=${ver%.*}"
-            echo "major=${ver%%.*}"
-          } >> "$GITHUB_OUTPUT"
-          echo "Resolved Caddy version → $ver"
-
       - name: Log in to Docker Hub
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
@@ -137,10 +128,13 @@ jobs:
           images: |
             ${{ env.DOCKERHUB_REPO }}
             ${{ env.GHCR_REPO }}
+          # Every build is the latest Caddy.
+          flavor: |
+            latest=false
           tags: |
-            type=raw,value=${{ steps.caddy.outputs.full }}
-            type=raw,value=${{ steps.caddy.outputs.major_minor }}
-            type=raw,value=${{ steps.caddy.outputs.major }}
+            type=semver,pattern={{version}},value=${{ inputs.caddy-version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.caddy-version }}
+            type=semver,pattern={{major}},value=${{ inputs.caddy-version }}
             type=raw,value=latest
           # Defaults would use the repository name and description, which cover all variants.
           labels: |
@@ -158,6 +152,7 @@ jobs:
             linux/arm64
           build-args: |
             CADDY_MODULES=${{ inputs.modules }}
+            CADDY_VERSION=${{ inputs.caddy-version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 

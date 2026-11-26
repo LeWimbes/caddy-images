@@ -9,15 +9,21 @@ lint:
 prek:
     prek run --all-files
 
-# Build an image, e.g. `just build "github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4"`.
-build $modules $tag="caddy-images:dev":
-    docker build --pull --build-arg CADDY_MODULES="$modules" --tag "$tag" .
+# Build an image, e.g. `just build "github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4" 2.11.9`.
+build $modules $caddy_version="2" $tag="caddy-images:dev":
+    docker build --pull --build-arg CADDY_MODULES="$modules" --build-arg CADDY_VERSION="$caddy_version" --tag "$tag" .
 
-# Check that a built image runs and contains the given modules, e.g. `just test "github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4"`.
-test $modules $tag="caddy-images:dev":
+# Check that a built image runs the given Caddy version and contains the given modules, e.g. `just test "github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4" 2.11.9`.
+test $modules $caddy_version="2" $tag="caddy-images:dev":
     #!/usr/bin/env bash
     set -euo pipefail
-    docker run --rm --network none "$tag" caddy version
+    version=$(docker run --rm --network none "$tag" caddy version)
+    echo "$version"
+    # Matches the exact version (2.11.9) as well as a prefix (2.11 or 2).
+    case "$version" in
+        "v$caddy_version "* | "v$caddy_version."*) ;;
+        *) echo "error: expected Caddy $caddy_version" >&2; exit 1 ;;
+    esac
     packages=$(docker run --rm --network none "$tag" caddy list-modules --packages --skip-standard)
     missing=0
     for module in $modules; do

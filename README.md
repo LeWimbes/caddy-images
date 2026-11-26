@@ -39,12 +39,14 @@ Replace `caddy-cloudflare` with `caddy-cloudflare-l4` for the image with the Lay
 
 ## 🛠️ Build it yourself
 
-The modules to build into Caddy are passed as a space-separated build argument:
+The modules to build into Caddy are passed as a space-separated build argument.
+`CADDY_VERSION` is optional and defaults to the latest Caddy 2:
 
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --build-arg CADDY_MODULES="github.com/caddy-dns/cloudflare github.com/mholt/caddy-l4" \
+  --build-arg CADDY_VERSION=2.11.9 \
   -t caddy-cloudflare-l4:latest .
 ```
 
@@ -53,7 +55,8 @@ docker buildx build \
 ## 🤖 How the workflow works
 
 [`auto-build-on-change.yml`](./.github/workflows/auto-build-on-change.yml) lists the images and their modules.
-For each image it runs [`build-image.yml`](./.github/workflows/build-image.yml):
+It reads the Caddy version from `caddy:latest` once, so all images are built from the same version,
+and runs [`build-image.yml`](./.github/workflows/build-image.yml) for each image:
 
 - **Triggers**
   - Any push to the `main` branch that changes the Dockerfile, the justfile or the workflows
@@ -62,7 +65,8 @@ For each image it runs [`build-image.yml`](./.github/workflows/build-image.yml):
   - Pull requests with such changes, which only build and test the image
 
 - **If an update is needed**, the workflow:
-  - builds the image natively on linux/amd64 and linux/arm64 and checks that it runs and contains its modules
+  - builds the image natively on linux/amd64 and linux/arm64 and
+    checks that it runs the expected Caddy version and contains its modules
     (`just build` and `just test`, which also work locally),
   - builds Caddy with the image's modules for linux/amd64 and linux/arm64,
   - tags the result (latest, full semver, major‑minor, major),

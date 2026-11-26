@@ -1,4 +1,8 @@
-FROM --platform=$BUILDPLATFORM caddy:builder AS builder
+# Caddy version to build, e.g. 2.11.9.
+# CI passes the exact version, the default builds the latest Caddy 2.
+ARG CADDY_VERSION=2
+
+FROM --platform=$BUILDPLATFORM caddy:${CADDY_VERSION}-builder AS builder
 ARG TARGETOS
 ARG TARGETARCH
 # Space-separated Go module paths to build into Caddy, e.g.
@@ -10,6 +14,5 @@ RUN set -eu; \
     for module in ${CADDY_MODULES}; do set -- "$@" --with "${module}"; done; \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} xcaddy build "$@"
 
-# hadolint ignore=DL3007
-FROM caddy:latest
+FROM caddy:${CADDY_VERSION}
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
