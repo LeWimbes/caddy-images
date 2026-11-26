@@ -1,7 +1,8 @@
 name: Build image
 
 # Called once per variant from auto-build-on-change.yml.
-# Checks one image variant for base image updates and, if needed, builds and publishes it.
+# Checks one image variant for base image updates and, if needed,
+# builds and tests it on every platform and then publishes it.
 on:
   workflow_call:
     inputs:
@@ -13,6 +14,11 @@ on:
         description: Space-separated Go module paths to build into Caddy
         required: true
         type: string
+      publish:
+        description: Push the image to the registries after the tests passed
+        required: false
+        type: boolean
+        default: false
 
 # Jobs opt into the permissions they need.
 permissions: {}
@@ -38,11 +44,47 @@ jobs:
           base-image: caddy:latest
           image: ${{ env.DOCKERHUB_REPO }}:latest
 
+  test:
+    name: Test (${{ matrix.arch }})
+    needs: check-updates
+    # Run if it's a manual trigger, a code push or pull request, or if the update checker found a new base image
+    if: github.event_name != 'schedule' || needs.check-updates.outputs.needs-updating == 'true'
+    strategy:
+      matrix:
+        # Native runners, so each image is built and run without emulation.
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read # check out the code
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install just
+        uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
+        with:
+          tool: just
+
+      - name: Build image
+        env:
+          MODULES: ${{ inputs.modules }}
+        run: just build "$MODULES"
+
+      - name: Test image
+        env:
+          MODULES: ${{ inputs.modules }}
+        run: just test "$MODULES"
+
   build-and-push:
     name: Build and Push Docker image
-    needs: check-updates
-    # Run if it's a manual trigger, a code push, or if the update checker found a new base image
-    if: github.event_name != 'schedule' || needs.check-updates.outputs.needs-updating == 'true'
+    needs: test
+    if: inputs.publish
     runs-on: ubuntu-latest
     environment: dockerhub
     permissions:

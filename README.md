@@ -56,16 +56,19 @@ docker buildx build \
 For each image it runs [`build-image.yml`](./.github/workflows/build-image.yml):
 
 - **Triggers**
-  - Any push to the `main` branch that changes the Dockerfile or the workflows
+  - Any push to the `main` branch that changes the Dockerfile, the justfile or the workflows
   - A daily scheduled run that checks whether `caddy:latest` has changed upstream
   - A manual run
+  - Pull requests with such changes, which only build and test the image
 
-- **If an update is needed**, the job:
+- **If an update is needed**, the workflow:
+  - builds the image natively on linux/amd64 and linux/arm64 and checks that it runs and contains its modules
+    (`just build` and `just test`, which also work locally),
   - builds Caddy with the image's modules for linux/amd64 and linux/arm64,
   - tags the result (latest, full semver, major‑minor, major),
   - pushes to **Docker Hub** and **GHCR**.
 
-Each image is checked and built independently, so a module that fails to build does not hold back the others.
+Each image is checked, tested and built independently, so a module that fails to build does not hold back the others.
 
 ---
 

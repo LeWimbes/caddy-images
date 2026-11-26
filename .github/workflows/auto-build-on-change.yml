@@ -9,6 +9,14 @@ on:
       - main
     paths:
       - Dockerfile
+      - justfile
+      - .github/workflows/auto-build-on-change.yml
+      - .github/workflows/build-image.yml
+  # Build and test only, see the publish input below.
+  pull_request:
+    paths:
+      - Dockerfile
+      - justfile
       - .github/workflows/auto-build-on-change.yml
       - .github/workflows/build-image.yml
 
@@ -16,8 +24,9 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: false
+  # Pull requests get their own group, so they never hold back or cancel a publish run.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -44,6 +53,7 @@ jobs:
     with:
       image: ${{ matrix.image }}
       modules: ${{ matrix.modules }}
+      publish: ${{ github.event_name != 'pull_request' }}
     # Reusable workflows get no secrets unless passed.
     # Environment secrets can't be passed explicitly,
     # and the called workflow lives in this repo, so inherit is fine.
