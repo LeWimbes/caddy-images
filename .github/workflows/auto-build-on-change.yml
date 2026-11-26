@@ -29,11 +29,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  caddy-version:
-    name: Resolve Caddy version
+  resolve:
+    name: Resolve Caddy version and build time
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.resolve.outputs.version }}
+      caddy-version: ${{ steps.resolve.outputs.version }}
+      build-time: ${{ steps.build-time.outputs.time }}
     steps:
       # Resolved once, so all images are built from the same version. caddy:latest is only
       # updated once the official images are published, so caddy:<version>(-builder) exist.
@@ -50,9 +51,14 @@ jobs:
           echo "version=$ver" >> "$GITHUB_OUTPUT"
           echo "Resolved Caddy version → $ver"
 
+      # Also resolved once, so all images built in this run share their immutable tag.
+      - name: Get the build time
+        id: build-time
+        run: echo "time=$(date -u +%Y%m%d.%H%M)" >> "$GITHUB_OUTPUT"
+
   build:
     name: ${{ matrix.image }}
-    needs: caddy-version
+    needs: resolve
     strategy:
       # A variant that fails to build must not stop the others from being published.
       fail-fast: false
@@ -75,7 +81,8 @@ jobs:
     with:
       image: ${{ matrix.image }}
       modules: ${{ matrix.modules }}
-      caddy-version: ${{ needs.caddy-version.outputs.version }}
+      caddy-version: ${{ needs.resolve.outputs.caddy-version }}
+      build-time: ${{ needs.resolve.outputs.build-time }}
       publish: ${{ github.event_name != 'pull_request' }}
     # Reusable workflows get no secrets unless passed.
     # Environment secrets can't be passed explicitly,

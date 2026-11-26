@@ -18,6 +18,10 @@ on:
         description: Exact Caddy version to build, e.g. 2.11.9
         required: true
         type: string
+      build-time:
+        description: UTC build time as YYYYMMDD.HHMM, for the immutable tag, e.g. 20261126.0420
+        required: true
+        type: string
       publish:
         description: Push the image to the registries after the tests passed
         required: false
@@ -171,6 +175,8 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.caddy-version }}
             type=semver,pattern={{major}},value=${{ inputs.caddy-version }}
             type=raw,value=latest
+            # Never moves, so a build can be pinned and rolled back to, e.g. 2.11.9-20261126.0420.
+            type=raw,value=${{ inputs.caddy-version }}-${{ inputs.build-time }}
           # Defaults would use the repository name and description, which cover all variants.
           labels: |
             org.opencontainers.image.title=${{ inputs.image }}

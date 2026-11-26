@@ -16,7 +16,7 @@ Automatically builds and publishes **multi‑architecture Docker images** for [C
 - **Cloudflare DNS provider built-in** – use `tls.dns.cloudflare`, ACME DNS challenges, or ECH without rebuilding Caddy.
 - **Layer 4 App built-in** (`-l4` image) – handle raw TCP & UDP connections.
 - **Multi‑arch** – runs on `linux/amd64` and `linux/arm64`.
-- **Automatic rebuilds** – whenever upstream `caddy:latest` changes.
+- **Automatic rebuilds** – whenever Caddy, its base image, Go or a module has an update.
 - Available from **Docker Hub** (`lewimbes/<image>`) and **GHCR** (`ghcr.io/lewimbes/<image>`).
 
 ---
@@ -34,6 +34,29 @@ docker pull lewimbes/caddy-cloudflare:2
 ```
 
 Replace `caddy-cloudflare` with `caddy-cloudflare-l4` for the image with the Layer 4 app.
+
+---
+
+## 🏷️ Tags
+
+| Tags                                                | Example                         | Points to                          |
+| --------------------------------------------------- | ------------------------------- | ---------------------------------- |
+| `latest`, `<major>`, `<major>.<minor>`, `<version>` | `latest`, `2`, `2.11`, `2.11.9` | The newest build, moves on rebuild |
+| `<version>-<YYYYMMDD>.<HHMM>` (UTC)                 | `2.11.9-20261126.0420`          | One build, never moves             |
+
+Images are also rebuilt without a new Caddy version, e.g. for a new module release or Go version.
+To stay on a known-good build or roll back to one, use its date-suffixed tag:
+
+```bash
+docker pull lewimbes/caddy-cloudflare:2.11.9-20261126.0420
+```
+
+To see what a build contains, read its `build-inputs` label:
+
+```bash
+docker buildx imagetools inspect lewimbes/caddy-cloudflare:latest --format '{{json .Image}}' \
+  | jq -r '."linux/amd64".config.Labels["io.github.lewimbes.caddy-images.build-inputs"]'
+```
 
 ---
 
