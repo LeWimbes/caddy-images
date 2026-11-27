@@ -112,6 +112,8 @@ Each image is checked, tested and built independently, so a module that fails to
 This repository is licensed under the **Apache License 2.0**.  
 [Caddy](https://github.com/caddyserver/caddy), [Caddy-Docker](https://github.com/caddyserver/caddy-docker), the [Cloudflare DNS provider](https://github.com/caddy-dns/cloudflare) and [Layer 4 App](https://github.com/mholt/caddy-l4) are upstream Apache‑2.0 projects.
 
+The images contain the license and notice files of Go and of every Go module built into the Caddy binary in `/usr/share/licenses/caddy/`, e.g. `/usr/share/licenses/caddy/github.com/caddyserver/caddy/v2/LICENSE`.
+
 ---
 
 ### Official resources

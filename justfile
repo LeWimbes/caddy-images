@@ -25,6 +25,8 @@ test $modules $caddy_version="2" $tag="caddy-images:dev":
         *) echo "error: expected Caddy $caddy_version" >&2; exit 1 ;;
     esac
     packages=$(docker run --rm --network none "$tag" caddy list-modules --packages --skip-standard)
+    # Empty if the folder doesn't exist, so each missing license is reported below.
+    licenses=$(docker run --rm --network none "$tag" find /usr/share/licenses/caddy -type f 2>/dev/null || true)
     missing=0
     for module in $modules; do
         # A module may be given as path@version, and its packages may be below its path.
@@ -33,6 +35,15 @@ test $modules $caddy_version="2" $tag="caddy-images:dev":
             echo "ok: $path"
         else
             echo "error: module $path is missing" >&2
+            missing=1
+        fi
+    done
+    for path in go github.com/caddyserver/caddy/v2 $modules; do
+        path="${path%%@*}"
+        if grep -q "^/usr/share/licenses/caddy/$path/" <<< "$licenses"; then
+            echo "ok: license of $path"
+        else
+            echo "error: license of $path is missing" >&2
             missing=1
         fi
     done
